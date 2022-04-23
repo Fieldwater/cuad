@@ -1,3 +1,117 @@
+# How to run it on NYU-HPC
+
+## Step1 using singularity overlays to create execute environment
+Create a DL directory for environment and project
+```
+mkdir /scratch/<NetID>/dl
+cd /scratch/<NetID>/dl
+```
+
+Choose a overlay
+```
+cp -rp /scratch/work/public/overlay-fs-ext3/overlay-7.5GB-300K.ext3.gz .
+gunzip overlay-7.5GB-300K.ext3.gz
+```
+
+Launch the appropriate Singularity container and enter it
+```
+singularity exec --overlay overlay-7.5GB-300K.ext3 /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash
+
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+sh Miniconda3-latest-Linux-x86_64.sh -b -p /ext3/miniconda3
+
+```
+
+Create a wrapper script /ext3/env.sh
+```
+#!/bin/bash
+
+source /ext3/miniconda3/etc/profile.d/conda.sh
+export PATH=/ext3/miniconda3/bin:$PATH
+export PYTHONPATH=/ext3/miniconda3/bin:$PATH
+```
+
+Activate your conda environment and install packages (Depends on your project)
+```
+source /ext3/env.sh
+
+conda update -n base conda -y
+conda clean --all --yes
+conda install pip
+conda install ipykernel # Note: ipykernel is required to run as a kernel in the Open OnDemand Jupyter Notebooks
+
+pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+
+pip3 install jupyter jupyterhub pandas matplotlib scipy scikit-learn scikit-image Pillow
+
+pip3 install transformers tensorboardX apex tensorflow_datasets ptvsd
+```
+
+Exit the Singularity container and Test
+```
+exit
+mv overlay-7.5GB-300K.ext3 my_pytorch.ext3
+
+singularity exec --overlay /scratch/<NetID>/dl/my_pytorch.ext3:ro /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash -c 'source /ext3/env.sh; python -c "import torch; print(torch.__file__); print(torch.__version__)"'
+```
+
+[Singularity with Miniconda](https://sites.google.com/nyu.edu/nyu-hpc/hpc-systems/greene/software/singularity-with-miniconda)
+
+## Step2 Pull your project
+Enter dl directory
+```
+cd /scratch/<NetID>/dl
+git clone git@github.com:Fieldwater/cuad.git
+
+cd cuad
+unzip data.zip -d ./data/
+```
+
+## Step3 Submit a SLURM batch job
+
+Create a run.sbatch
+```
+#!/bin/bash
+
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=10:00:00
+#SBATCH --mem=128GB
+#SBATCH --gres=gpu
+#SBATCH --job-name=python-cuad
+#SBATCH --output=cuad.out
+
+module purge
+
+singularity exec --nv \
+	    --overlay /scratch/yt2093/pytorch-example/my_pytorch.ext3:ro \
+	    /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif \
+	    /bin/bash -c "source /ext3/env.sh; bash ./run.sh"
+```
+
+Submit your job
+```
+sbatch run.sbatch
+```
+
+## Step4 Check job status 
+Check in terminal
+```
+# show job description
+scontrol show job <id>
+
+# queue job
+squeue -u yt2093
+
+# cancel jobs
+scancel <id1> <id2>
+```
+
+Or you can use [GUI](https://ood.hpc.nyu.edu/pun/sys/dashboard/)
+- Jobs -> Active Jobs
+
+
 # Contract Understanding Atticus Dataset
 
 This repository contains code for the [Contract Understanding Atticus Dataset (CUAD)](https://www.atticusprojectai.org/cuad), pronounced "kwad", a dataset for legal contract review curated by the Atticus Project. It is part of the associated paper [CUAD: An Expert-Annotated NLP Dataset for Legal Contract Review](https://arxiv.org/abs/2103.06268) by [Dan Hendrycks](http://danhendrycks.com/), [Collin Burns](http://collinpburns.com), Anya Chen, and Spencer Ball.
