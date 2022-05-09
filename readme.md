@@ -98,6 +98,9 @@ sbatch run.sbatch
 ## Step4 Check job status 
 Check in terminal
 ```
+# follow your output dynamically
+tail -f cuad.out
+
 # show job description
 scontrol show job <id>
 
