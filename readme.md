@@ -73,9 +73,9 @@ Create a run.sbatch
 ```
 #!/bin/bash
 
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
+#SBATCH --nodes=3       # requests N compute servers
+#SBATCH --ntasks-per-node=2   # runs N tasks on each server
+#SBATCH --cpus-per-task=1     # uess N compute core per task
 #SBATCH --time=10:00:00
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu
