@@ -85,7 +85,7 @@ Create a run.sbatch
 module purge
 
 singularity exec --nv \
-	    --overlay /scratch/yt2093/pytorch-example/my_pytorch.ext3:ro \
+	    --overlay /scratch/<NetID>/dl/my_pytorch.ext3:ro \
 	    /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif \
 	    /bin/bash -c "source /ext3/env.sh; bash ./run.sh"
 ```
