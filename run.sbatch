@@ -1,10 +1,11 @@
 #!/bin/bash
 
-#SBATCH --nodes=1       # requests N compute servers
-#SBATCH --ntasks-per-node=1   # runs N tasks on each server
-#SBATCH --cpus-per-task=1     # uess N compute core per task
-#SBATCH --time=20:00:00
-#SBATCH --mem=512GB
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=3
+#SBATCH --cpus-per-task=1
+#SBATCH --time=48:00:00
+#SBATCH --mem=128GB
+#SBATCH --gres=gpu
 #SBATCH --job-name=python-cuad
 #SBATCH --output=cuad.out
 
