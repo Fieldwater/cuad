@@ -41,11 +41,11 @@ conda clean --all --yes
 conda install pip
 conda install ipykernel # Note: ipykernel is required to run as a kernel in the Open OnDemand Jupyter Notebooks
 
-pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+pip install torch==1.7.0
 
-pip3 install jupyter jupyterhub pandas matplotlib scipy scikit-learn scikit-image Pillow
+pip install jupyter jupyterhub pandas matplotlib scipy scikit-learn scikit-image Pillow
 
-pip3 install transformers tensorboardX apex tensorflow_datasets ptvsd
+pip install transformers==3.4.0 tensorboardX apex tensorflow_datasets ptvsd
 ```
 
 Exit the Singularity container and Test
