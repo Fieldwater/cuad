@@ -17,8 +17,9 @@ Launch the appropriate Singularity container and enter it
 ```
 singularity exec --overlay overlay-7.5GB-300K.ext3 /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash
 
-wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-sh Miniconda3-latest-Linux-x86_64.sh -b -p /ext3/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh
+
+sh Miniconda3-py38_4.9.2-Linux-x86_64.sh -b -p /ext3/miniconda3
 
 ```
 
