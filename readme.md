@@ -17,13 +17,17 @@ Launch the appropriate Singularity container and enter it
 ```
 singularity exec --overlay overlay-7.5GB-300K.ext3 /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash
 
-wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh
+wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.11.0-Linux-x86_64.sh
 
-sh Miniconda3-py38_4.9.2-Linux-x86_64.sh -b -p /ext3/miniconda3
+sh Miniconda3-py38_4.11.0-Linux-x86_64.sh -b -p /ext3/miniconda3
 
 ```
 
-Create a wrapper script /ext3/env.sh
+Create a wrapper script
+```
+vim /ext3/env.sh
+```
+
 ```
 #!/bin/bash
 
@@ -35,11 +39,6 @@ export PYTHONPATH=/ext3/miniconda3/bin:$PATH
 Activate your conda environment and install packages (Depends on your project)
 ```
 source /ext3/env.sh
-
-conda update -n base conda -y
-conda clean --all --yes
-conda install pip
-conda install ipykernel # Note: ipykernel is required to run as a kernel in the Open OnDemand Jupyter Notebooks
 
 pip install torch==1.7.0
 
