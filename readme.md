@@ -44,7 +44,7 @@ pip install torch==1.7.0
 
 pip install jupyter jupyterhub pandas matplotlib scipy scikit-learn scikit-image Pillow
 
-pip install transformers==3.4.0 tensorboardX apex tensorflow_datasets ptvsd
+pip install transformers==4.4.0 tensorboardX apex tensorflow_datasets ptvsd
 ```
 
 Exit the Singularity container and Test
