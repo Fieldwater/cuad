@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1 python train.py \
+CUDA_VISIBLE_DEVICES=0,1 python xlnet_train.py \
         --output_dir ./train_models/xlnet \
         --model_type xlnet \
         --model_name_or_path xlnet-base-cased \

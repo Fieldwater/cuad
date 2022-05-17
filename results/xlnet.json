@@ -1,0 +1,1 @@
+{'name': 'xlnet', 'aupr': 0.44731212450854425, 'prec_at_80_recall': 0.38561132890234533, 'prec_at_90_recall': 0}

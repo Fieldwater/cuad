@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=24:00:00
-#SBATCH --mem=512GB
+#SBATCH --mem=128GB
+#SBATCH --gres=gpu
 #SBATCH --job-name=python-xlnet
 #SBATCH --output=xlnet.out
 

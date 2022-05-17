@@ -38,8 +38,14 @@ from transformers import (
     AutoConfig,
     AutoModelForQuestionAnswering,
     AutoTokenizer,
+    XLNetConfig,
+    XLNetTokenizer,
+    XLNetForQuestionAnswering,
     get_linear_schedule_with_warmup,
     squad_convert_examples_to_features,
+)
+from transformers.data.metrics.squad_metrics import (
+    compute_predictions_log_probs,
 )
 from utils import (
     compute_predictions_logits,
@@ -47,6 +53,7 @@ from utils import (
 )
 from transformers.data.processors.squad import SquadResult, SquadV1Processor, SquadV2Processor
 from transformers.trainer_utils import is_main_process
+from torch.cuda.amp import GradScaler
 
 
 try:
@@ -184,6 +191,7 @@ def train(args, train_dataset, model, tokenizer):
         * args.gradient_accumulation_steps
         * (torch.distributed.get_world_size() if args.local_rank != -1 else 1),
     )
+    logger.info("  Train batch size = %d", args.train_batch_size)
     logger.info("  Gradient Accumulation steps = %d", args.gradient_accumulation_steps)
     logger.info("  Total optimization steps = %d", t_total)
 
@@ -239,7 +247,13 @@ def train(args, train_dataset, model, tokenizer):
                 del inputs["token_type_ids"]
 
             if args.model_type in ["xlnet", "xlm"]:
-                raise NotImplementedError
+                inputs.update({"cls_index": batch[5], "p_mask": batch[6]})
+                if args.version_2_with_negative:
+                    inputs.update({"is_impossible": batch[7]})
+                if hasattr(model, "config") and hasattr(model.config, "lang2id"):
+                    inputs.update(
+                        {"langs": (torch.ones(batch[0].shape, dtype=torch.int64) * args.lang_id).to(args.device)}
+                    )
 
             outputs = model(**inputs)
             # model outputs are always tuple in transformers (see doc)
@@ -250,11 +264,13 @@ def train(args, train_dataset, model, tokenizer):
             if args.gradient_accumulation_steps > 1:
                 loss = loss / args.gradient_accumulation_steps
 
-            if args.fp16:
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
-            else:
-                loss.backward()
+            # if args.fp16:
+            #     with amp.scale_loss(loss, optimizer) as scaled_loss:
+            #         scaled_loss.backward()
+            # else:
+            #     loss.backward()
+            scaler = GradScaler()
+            
 
             tr_loss += loss.item()
             if (step + 1) % args.gradient_accumulation_steps == 0:
@@ -309,6 +325,7 @@ def train(args, train_dataset, model, tokenizer):
 
 def evaluate(args, model, tokenizer, prefix=""):
     dataset, examples, features = load_and_cache_examples(args, tokenizer, evaluate=True, output_examples=True)
+    logger.info("Dataset: {}, typep: {}".format(dataset, type(dataset)))
 
     with open(args.predict_file, "r") as f:
         json_test_dict = json.load(f)
@@ -352,7 +369,12 @@ def evaluate(args, model, tokenizer, prefix=""):
 
             # XLNet and XLM use more arguments for their predictions
             if args.model_type in ["xlnet", "xlm"]:
-                raise NotImplementedError
+                inputs.update({"cls_index": batch[4], "p_mask": batch[5]})
+                # for lang_id-sensitive xlm models
+                if hasattr(model, "config") and hasattr(model.config, "lang2id"):
+                    inputs.update(
+                        {"langs": (torch.ones(batch[0].shape, dtype=torch.int64) * args.lang_id).to(args.device)}
+                    )
             outputs = model(**inputs)
 
         for i, feature_index in enumerate(feature_indices):
@@ -399,7 +421,24 @@ def evaluate(args, model, tokenizer, prefix=""):
 
     # XLNet and XLM use a more complex post-processing procedure
     if args.model_type in ["xlnet", "xlm"]:
-        raise NotImplementedError
+        start_n_top = model.config.start_n_top if hasattr(model, "config") else model.module.config.start_n_top
+        end_n_top = model.config.end_n_top if hasattr(model, "config") else model.module.config.end_n_top
+
+        predictions = compute_predictions_log_probs(
+            examples,
+            features,
+            all_results,
+            args.n_best_size,
+            args.max_answer_length,
+            output_prediction_file,
+            output_nbest_file,
+            output_null_log_odds_file,
+            start_n_top,
+            end_n_top,
+            args.version_2_with_negative,
+            tokenizer,
+            args.verbose_logging,
+        )
     else:
         predictions = compute_predictions_logits(
             json_test_dict,
@@ -778,22 +817,25 @@ def main():
         torch.distributed.barrier()
 
     args.model_type = args.model_type.lower()
-    config = AutoConfig.from_pretrained(
-        args.config_name if args.config_name else args.model_name_or_path,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
-        do_lower_case=args.do_lower_case,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-        use_fast=False,  # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
-    )
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        args.model_name_or_path,
-        from_tf=bool(".ckpt" in args.model_name_or_path),
-        config=config,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-    )
+    # config = AutoConfig.from_pretrained(
+    #     args.config_name if args.config_name else args.model_name_or_path,
+    #     cache_dir=args.cache_dir if args.cache_dir else None,
+    # )
+    config = XLNetConfig(n_layer=24, n_head=16, ff_activation='gelu')
+    # tokenizer = AutoTokenizer.from_pretrained(
+    #     args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
+    #     do_lower_case=args.do_lower_case,
+    #     cache_dir=args.cache_dir if args.cache_dir else None,
+    #     use_fast=False,  # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
+    # )
+    tokenizer = XLNetTokenizer.from_pretrained("xlnet-base-cased")
+    # model = AutoModelForQuestionAnswering.from_pretrained(
+    #     args.model_name_or_path,
+    #     from_tf=bool(".ckpt" in args.model_name_or_path),
+    #     config=config,
+    #     cache_dir=args.cache_dir if args.cache_dir else None,
+    # )
+    model = XLNetForQuestionAnswering(config)
 
     if args.local_rank == 0:
         # Make sure only the first process in distributed training will download model & vocab
@@ -835,12 +877,12 @@ def main():
         torch.save(args, os.path.join(args.output_dir, "training_args.bin"))
 
         # Load a trained model and vocabulary that you have fine-tuned
-        model = AutoModelForQuestionAnswering.from_pretrained(args.output_dir)  # , force_download=True)
+        model = XLNetForQuestionAnswering.from_pretrained(args.output_dir)  # , force_download=True)
         #print("LOADED MODEL")
 
         # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
         # So we use use_fast=False here for now until Fast-tokenizer-compatible-examples are out
-        tokenizer = AutoTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case, use_fast=False)
+        tokenizer = XLNetTokenizer.from_pretrained(args.output_dir)
         model.to(args.device)
 
     # Evaluation - we can ask to evaluate all the checkpoints (sub-directories) in a directory
@@ -864,7 +906,7 @@ def main():
         for checkpoint in checkpoints:
             # Reload the model
             global_step = checkpoint.split("-")[-1] if len(checkpoints) > 1 else ""
-            model = AutoModelForQuestionAnswering.from_pretrained(checkpoint)  # , force_download=True)
+            model = XLNetForQuestionAnswering.from_pretrained(checkpoint)  # , force_download=True)
             model.to(args.device)
 
             # Evaluate
